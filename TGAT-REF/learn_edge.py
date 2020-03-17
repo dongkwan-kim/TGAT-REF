@@ -9,7 +9,6 @@ import argparse
 import torch
 import pandas as pd
 import numpy as np
-#import numba
 
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import f1_score
@@ -19,7 +18,7 @@ from module import TGAN
 from graph import NeighborFinder
 from utils import EarlyStopMonitor, RandEdgeSampler
 
-### Argument and global variables
+# Argument and global variables
 parser = argparse.ArgumentParser('Interface for TGAT experiments on link predictions')
 parser.add_argument('-d', '--data', type=str, help='data sources to use, try wikipedia or reddit', default='wikipedia')
 parser.add_argument('--bs', type=int, default=200, help='batch_size')
@@ -31,11 +30,14 @@ parser.add_argument('--n_layer', type=int, default=2, help='number of network la
 parser.add_argument('--lr', type=float, default=0.0001, help='learning rate')
 parser.add_argument('--drop_out', type=float, default=0.1, help='dropout probability')
 parser.add_argument('--gpu', type=int, default=0, help='idx for the gpu to use')
-parser.add_argument('--node_dim', type=int, default=100, help='Dimentions of the node embedding')
-parser.add_argument('--time_dim', type=int, default=100, help='Dimentions of the time embedding')
-parser.add_argument('--agg_method', type=str, choices=['attn', 'lstm', 'mean'], help='local aggregation method', default='attn')
-parser.add_argument('--attn_mode', type=str, choices=['prod', 'map'], default='prod', help='use dot product attention or mapping based')
-parser.add_argument('--time', type=str, choices=['time', 'pos', 'empty'], help='how to use time information', default='time')
+parser.add_argument('--node_dim', type=int, default=100, help='Dimensions of the node embedding')
+parser.add_argument('--time_dim', type=int, default=100, help='Dimensions of the time embedding')
+parser.add_argument('--agg_method', type=str, choices=['attn', 'lstm', 'mean'], help='local aggregation method',
+                    default='attn')
+parser.add_argument('--attn_mode', type=str, choices=['prod', 'map'], default='prod',
+                    help='use dot product attention or mapping based')
+parser.add_argument('--time', type=str, choices=['time', 'pos', 'empty'], help='how to use time information',
+                    default='time')
 parser.add_argument('--uniform', action='store_true', help='take uniform sampling from temporal neighbors')
 
 try:
@@ -63,11 +65,11 @@ LEARNING_RATE = args.lr
 NODE_DIM = args.node_dim
 TIME_DIM = args.time_dim
 
-
 MODEL_SAVE_PATH = f'./saved_models/{args.prefix}-{args.agg_method}-{args.attn_mode}-{args.data}.pth'
-get_checkpoint_path = lambda epoch: f'./saved_checkpoints/{args.prefix}-{args.agg_method}-{args.attn_mode}-{args.data}-{epoch}.pth'
+get_checkpoint_path = lambda \
+    epoch: f'./saved_checkpoints/{args.prefix}-{args.agg_method}-{args.attn_mode}-{args.data}-{epoch}.pth'
 
-### set up logger
+# set up logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -87,7 +89,7 @@ def eval_one_epoch(hint, tgan, sampler, src, dst, ts, label):
     val_acc, val_ap, val_f1, val_auc = [], [], [], []
     with torch.no_grad():
         tgan = tgan.eval()
-        TEST_BATCH_SIZE=30
+        TEST_BATCH_SIZE = 30
         num_test_instance = len(src)
         num_test_batch = math.ceil(num_test_instance / TEST_BATCH_SIZE)
         for k in range(num_test_batch):
@@ -105,16 +107,17 @@ def eval_one_epoch(hint, tgan, sampler, src, dst, ts, label):
             src_l_fake, dst_l_fake = sampler.sample(size)
 
             pos_prob, neg_prob = tgan.contrast(src_l_cut, dst_l_cut, dst_l_fake, ts_l_cut, NUM_NEIGHBORS)
-            
+
             pred_score = np.concatenate([(pos_prob).cpu().numpy(), (neg_prob).cpu().numpy()])
             pred_label = pred_score > 0.5
             true_label = np.concatenate([np.ones(size), np.zeros(size)])
-            
+
             val_acc.append((pred_label == true_label).mean())
             val_ap.append(average_precision_score(true_label, pred_score))
             # val_f1.append(f1_score(true_label, pred_label))
             val_auc.append(roc_auc_score(true_label, pred_score))
     return np.mean(val_acc), np.mean(val_ap), np.mean(val_f1), np.mean(val_auc)
+
 
 ### Load data and train val test split
 g_df = pd.read_csv('./processed/ml_{}.csv'.format(DATA))
@@ -137,7 +140,8 @@ random.seed(2020)
 total_node_set = set(np.unique(np.hstack([g_df.u.values, g_df.i.values])))
 num_total_unique_nodes = len(total_node_set)
 
-mask_node_set = set(random.sample(set(src_l[ts_l > val_time]).union(set(dst_l[ts_l > val_time])), int(0.1 * num_total_unique_nodes)))
+mask_node_set = set(
+    random.sample(set(src_l[ts_l > val_time]).union(set(dst_l[ts_l > val_time])), int(0.1 * num_total_unique_nodes)))
 mask_src_flag = g_df.u.map(lambda x: x in mask_node_set).values
 mask_dst_flag = g_df.i.map(lambda x: x in mask_node_set).values
 none_node_flag = (1 - mask_src_flag) * (1 - mask_dst_flag)
@@ -152,7 +156,7 @@ train_label_l = label_l[valid_train_flag]
 
 # define the new nodes sets for testing inductiveness of the model
 train_node_set = set(train_src_l).union(train_dst_l)
-assert(len(train_node_set - mask_node_set) == len(train_node_set))
+assert (len(train_node_set - mask_node_set) == len(train_node_set))
 new_node_set = total_node_set - train_node_set
 
 # select validation and test dataset
@@ -210,7 +214,6 @@ nn_val_rand_sampler = RandEdgeSampler(nn_val_src_l, nn_val_dst_l)
 test_rand_sampler = RandEdgeSampler(src_l, dst_l)
 nn_test_rand_sampler = RandEdgeSampler(nn_test_src_l, nn_test_dst_l)
 
-
 ### Model initialize
 device = torch.device('cuda:{}'.format(GPU))
 tgan = TGAN(train_ngh_finder, n_feat, e_feat,
@@ -226,7 +229,7 @@ num_batch = math.ceil(num_instance / BATCH_SIZE)
 logger.info('num of training instances: {}'.format(num_instance))
 logger.info('num of batches per epoch: {}'.format(num_batch))
 idx_list = np.arange(num_instance)
-np.random.shuffle(idx_list) 
+np.random.shuffle(idx_list)
 
 early_stopper = EarlyStopMonitor()
 for epoch in range(NUM_EPOCH):
@@ -248,18 +251,18 @@ for epoch in range(NUM_EPOCH):
         label_l_cut = train_label_l[s_idx:e_idx]
         size = len(src_l_cut)
         src_l_fake, dst_l_fake = train_rand_sampler.sample(size)
-        
+
         with torch.no_grad():
             pos_label = torch.ones(size, dtype=torch.float, device=device)
             neg_label = torch.zeros(size, dtype=torch.float, device=device)
-        
+
         optimizer.zero_grad()
         tgan = tgan.train()
         pos_prob, neg_prob = tgan.contrast(src_l_cut, dst_l_cut, dst_l_fake, ts_l_cut, NUM_NEIGHBORS)
-    
+
         loss = criterion(pos_prob, pos_label)
         loss += criterion(neg_prob, neg_label)
-        
+
         loss.backward()
         optimizer.step()
         # get training results
@@ -276,12 +279,13 @@ for epoch in range(NUM_EPOCH):
 
     # validation phase use all information
     tgan.ngh_finder = full_ngh_finder
-    val_acc, val_ap, val_f1, val_auc = eval_one_epoch('val for old nodes', tgan, val_rand_sampler, val_src_l, 
-    val_dst_l, val_ts_l, val_label_l)
+    val_acc, val_ap, val_f1, val_auc = eval_one_epoch('val for old nodes', tgan, val_rand_sampler, val_src_l,
+                                                      val_dst_l, val_ts_l, val_label_l)
 
-    nn_val_acc, nn_val_ap, nn_val_f1, nn_val_auc = eval_one_epoch('val for new nodes', tgan, val_rand_sampler, nn_val_src_l, 
-    nn_val_dst_l, nn_val_ts_l, nn_val_label_l)
-        
+    nn_val_acc, nn_val_ap, nn_val_f1, nn_val_auc = eval_one_epoch('val for new nodes', tgan, val_rand_sampler,
+                                                                  nn_val_src_l,
+                                                                  nn_val_dst_l, nn_val_ts_l, nn_val_label_l)
+
     logger.info('epoch: {}:'.format(epoch))
     logger.info('Epoch mean loss: {}'.format(np.mean(m_loss)))
     logger.info('train acc: {}, val acc: {}, new node val acc: {}'.format(np.mean(acc), val_acc, nn_val_acc))
@@ -300,14 +304,14 @@ for epoch in range(NUM_EPOCH):
     else:
         torch.save(tgan.state_dict(), get_checkpoint_path(epoch))
 
-
 # testing phase use all information
 tgan.ngh_finder = full_ngh_finder
-test_acc, test_ap, test_f1, test_auc = eval_one_epoch('test for old nodes', tgan, test_rand_sampler, test_src_l, 
-test_dst_l, test_ts_l, test_label_l)
+test_acc, test_ap, test_f1, test_auc = eval_one_epoch('test for old nodes', tgan, test_rand_sampler, test_src_l,
+                                                      test_dst_l, test_ts_l, test_label_l)
 
-nn_test_acc, nn_test_ap, nn_test_f1, nn_test_auc = eval_one_epoch('test for new nodes', tgan, nn_test_rand_sampler, nn_test_src_l, 
-nn_test_dst_l, nn_test_ts_l, nn_test_label_l)
+nn_test_acc, nn_test_ap, nn_test_f1, nn_test_auc = eval_one_epoch('test for new nodes', tgan, nn_test_rand_sampler,
+                                                                  nn_test_src_l,
+                                                                  nn_test_dst_l, nn_test_ts_l, nn_test_label_l)
 
 logger.info('Test statistics: Old nodes -- acc: {}, auc: {}, ap: {}'.format(test_acc, test_auc, test_ap))
 logger.info('Test statistics: New nodes -- acc: {}, auc: {}, ap: {}'.format(nn_test_acc, nn_test_auc, nn_test_ap))
@@ -315,9 +319,3 @@ logger.info('Test statistics: New nodes -- acc: {}, auc: {}, ap: {}'.format(nn_t
 logger.info('Saving TGAN model')
 torch.save(tgan.state_dict(), MODEL_SAVE_PATH)
 logger.info('TGAN models saved')
-
- 
-
-
-
-

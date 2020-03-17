@@ -1,6 +1,7 @@
 import numpy as np
 
-### Utility function and class
+
+# Utility function and class
 class EarlyStopMonitor(object):
     def __init__(self, max_round=3, higher_better=True, tolerance=1e-3):
         self.max_round = max_round
@@ -15,7 +16,7 @@ class EarlyStopMonitor(object):
 
     def early_stop_check(self, curr_val):
         self.epoch_count += 1
-        
+
         if not self.higher_better:
             curr_val *= -1
         if self.last_best is None:
@@ -27,6 +28,7 @@ class EarlyStopMonitor(object):
         else:
             self.num_round += 1
         return self.num_round >= self.max_round
+
 
 class RandEdgeSampler(object):
     def __init__(self, src_list, dst_list):
